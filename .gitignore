@@ -1,0 +1,16 @@
+## .NET
+bin/
+obj/
+publish/
+
+## IDE
+.vs/
+*.user
+*.suo
+
+## Settings generated at runtime
+settings.json
+
+## OS
+Thumbs.db
+Desktop.ini
