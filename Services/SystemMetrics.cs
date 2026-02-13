@@ -546,8 +546,4 @@ public sealed class SystemMetrics
     /// </summary>
     public float? Cpu16Power { get; init; }
 
-    /// <summary>
-    /// Raw MAHM shared memory entries keyed by source name.
-    /// </summary>
-    public Dictionary<string, float> MahmRawEntries { get; init; } = new();
 }
