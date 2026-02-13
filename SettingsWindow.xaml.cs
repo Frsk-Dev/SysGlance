@@ -33,10 +33,14 @@ public partial class SettingsWindow : Window
 
         BuildMetricList();
 
-        // Label color swatch.
-        LabelColorSwatch.Background = new SolidColorBrush((Color)
-            ColorConverter.ConvertFromString(settings.LabelColor));
-        LabelColorSwatch.MouseLeftButtonDown += (_, _) => OnLabelColorClicked();
+        // Label color picker.
+        LabelColorPicker.SelectedColor = (Color)ColorConverter.ConvertFromString(settings.LabelColor);
+        LabelColorPicker.ColorChanged += (_, _) =>
+        {
+            Color c = LabelColorPicker.SelectedColor;
+            settings.LabelColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            SaveAndNotify();
+        };
 
         switch (settings.Position)
         {
@@ -65,6 +69,41 @@ public partial class SettingsWindow : Window
         StartupCheckBox.IsChecked = settings.StartWithWindows;
         StartupCheckBox.Checked += (_, _) => OnStartupToggled(true);
         StartupCheckBox.Unchecked += (_, _) => OnStartupToggled(false);
+
+        // Hide overlay.
+        HideOverlayCheckBox.IsChecked = settings.HideOverlay;
+        HideOverlayCheckBox.Checked += (_, _) => OnHideOverlayToggled(true);
+        HideOverlayCheckBox.Unchecked += (_, _) => OnHideOverlayToggled(false);
+
+        // Web server.
+        WebServerCheckBox.IsChecked = settings.WebServerEnabled;
+        WebServerCheckBox.Checked += (_, _) => OnWebServerToggled(true);
+        WebServerCheckBox.Unchecked += (_, _) => OnWebServerToggled(false);
+
+        PortTextBox.Text = settings.WebServerPort.ToString();
+        PortTextBox.TextChanged += OnPortTextChanged;
+        UpdateIframeCode();
+        UpdateWebServerDetailsVisibility();
+
+        CopyIframeButton.Click += (_, _) =>
+            System.Windows.Clipboard.SetText(IframeCodeTextBox.Text);
+
+        // Dashboard color pickers.
+        DashBgPicker.SelectedColor = (Color)ColorConverter.ConvertFromString(settings.DashboardBgColor);
+        DashBgPicker.ColorChanged += (_, _) =>
+        {
+            Color c = DashBgPicker.SelectedColor;
+            settings.DashboardBgColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            SaveAndNotify();
+        };
+
+        DashCardPicker.SelectedColor = (Color)ColorConverter.ConvertFromString(settings.DashboardCardColor);
+        DashCardPicker.ColorChanged += (_, _) =>
+        {
+            Color c = DashCardPicker.SelectedColor;
+            settings.DashboardCardColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            SaveAndNotify();
+        };
 
         // Wire events after initial population to avoid false triggers.
         PositionLeftRadio.Checked += OnRadioChanged;
@@ -182,24 +221,23 @@ public partial class SettingsWindow : Window
         row.Children.Add(label);
 
         string currentColor = settings.GetColor(key);
-        var colorSwatch = new Border
+        var colorPicker = new ColorPicker.PortableColorPicker
         {
-            Width = 16,
-            Height = 16,
-            Background = new SolidColorBrush((Color)
-                ColorConverter.ConvertFromString(currentColor)),
-            BorderBrush = new SolidColorBrush((Color)
-                ColorConverter.ConvertFromString("#666666")),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
+            Width = 22,
+            Height = 22,
+            ShowAlpha = false,
+            SelectedColor = (Color)ColorConverter.ConvertFromString(currentColor),
             Margin = new Thickness(6, 0, 6, 0),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            ToolTip = "Click to change color",
             Opacity = isActive ? 1.0 : 0.4
         };
-        colorSwatch.MouseLeftButtonDown += (_, _) => OnColorClicked(capturedKey, colorSwatch);
-        Grid.SetColumn(colorSwatch, 2);
-        row.Children.Add(colorSwatch);
+        colorPicker.ColorChanged += (_, _) =>
+        {
+            Color c = colorPicker.SelectedColor;
+            settings.SetColor(capturedKey, $"#{c.R:X2}{c.G:X2}{c.B:X2}");
+            SaveAndNotify();
+        };
+        Grid.SetColumn(colorPicker, 2);
+        row.Children.Add(colorPicker);
 
         if (isActive)
         {
@@ -282,55 +320,7 @@ public partial class SettingsWindow : Window
         SaveAndNotify();
     }
 
-    /// <summary>
-    /// Opens a color picker for a metric value color.
-    /// </summary>
-    private void OnColorClicked(string metricKey, Border colorSwatch)
-    {
-        Color wpfColor = (Color)ColorConverter.ConvertFromString(settings.GetColor(metricKey));
 
-        var dialog = new System.Windows.Forms.ColorDialog
-        {
-            FullOpen = true,
-            Color = System.Drawing.Color.FromArgb(wpfColor.A, wpfColor.R, wpfColor.G, wpfColor.B)
-        };
-
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-        {
-            System.Drawing.Color chosen = dialog.Color;
-            string newColor = $"#{chosen.R:X2}{chosen.G:X2}{chosen.B:X2}";
-
-            settings.SetColor(metricKey, newColor);
-            colorSwatch.Background = new SolidColorBrush((Color)
-                ColorConverter.ConvertFromString(newColor));
-            SaveAndNotify();
-        }
-    }
-
-    /// <summary>
-    /// Opens a color picker for the label text color.
-    /// </summary>
-    private void OnLabelColorClicked()
-    {
-        Color wpfColor = (Color)ColorConverter.ConvertFromString(settings.LabelColor);
-
-        var dialog = new System.Windows.Forms.ColorDialog
-        {
-            FullOpen = true,
-            Color = System.Drawing.Color.FromArgb(wpfColor.A, wpfColor.R, wpfColor.G, wpfColor.B)
-        };
-
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-        {
-            System.Drawing.Color chosen = dialog.Color;
-            string newColor = $"#{chosen.R:X2}{chosen.G:X2}{chosen.B:X2}";
-
-            settings.LabelColor = newColor;
-            LabelColorSwatch.Background = new SolidColorBrush((Color)
-                ColorConverter.ConvertFromString(newColor));
-            SaveAndNotify();
-        }
-    }
 
     /// <summary>
     /// Moves a metric one position up in the active ordering.
@@ -417,12 +407,105 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
+    /// Toggles the taskbar overlay visibility setting.
+    /// </summary>
+    private void OnHideOverlayToggled(bool hidden)
+    {
+        settings.HideOverlay = hidden;
+        SaveAndNotify();
+    }
+
+    /// <summary>
+    /// Toggles the web server and shows or hides the details panel.
+    /// </summary>
+    private void OnWebServerToggled(bool enabled)
+    {
+        settings.WebServerEnabled = enabled;
+        UpdateWebServerDetailsVisibility();
+        SaveAndNotify();
+    }
+
+    /// <summary>
+    /// Validates the port input and updates the setting.
+    /// </summary>
+    private void OnPortTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (isInitializing)
+        {
+            return;
+        }
+
+        if (int.TryParse(PortTextBox.Text, out int port) && (port >= 1024) && (port <= 65535))
+        {
+            settings.WebServerPort = port;
+            PortTextBox.BorderBrush = new SolidColorBrush((Color)
+                ColorConverter.ConvertFromString("#555555"));
+            UpdateIframeCode();
+            SaveAndNotify();
+        }
+        else
+        {
+            PortTextBox.BorderBrush = new SolidColorBrush((Color)
+                ColorConverter.ConvertFromString("#CC4444"));
+        }
+    }
+
+    /// <summary>
+    /// Updates the iframe code display based on the current port.
+    /// </summary>
+    private void UpdateIframeCode()
+    {
+        IframeCodeTextBox.Text =
+            $"""<iframe src="http://localhost:{settings.WebServerPort}" width="100%" height="100%" frameborder="0" allowtransparency="true" style="background:transparent"></iframe>""";
+    }
+
+    /// <summary>
+    /// Shows or hides the web server details panel.
+    /// </summary>
+    private void UpdateWebServerDetailsVisibility()
+    {
+        WebServerDetailsPanel.Visibility = settings.WebServerEnabled
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    /// <summary>
     /// Saves settings and notifies the overlay to rebuild.
     /// </summary>
     private void SaveAndNotify()
     {
         settings.Save();
         onSettingsChanged();
+    }
+
+    /// <summary>
+    /// Opens the Ko-fi donation page in the default browser.
+    /// </summary>
+    private void KofiButton_Click(object sender, MouseButtonEventArgs e)
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "https://ko-fi.com/frskdevelopment",
+            UseShellExecute = true
+        });
+    }
+
+    /// <summary>
+    /// Highlights the Ko-fi button on mouse enter.
+    /// </summary>
+    private void KofiButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        KofiButton.Background = new SolidColorBrush((Color)
+            ColorConverter.ConvertFromString("#363636"));
+    }
+
+    /// <summary>
+    /// Resets the Ko-fi button on mouse leave.
+    /// </summary>
+    private void KofiButton_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        KofiButton.Background = new SolidColorBrush((Color)
+            ColorConverter.ConvertFromString("#2A2A2A"));
     }
 
     /// <summary>

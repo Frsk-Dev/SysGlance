@@ -653,8 +653,8 @@ internal sealed class HardwareMonitorService : IDisposable
         foreach (KeyValuePair<string, float> entry in entries)
         {
             if (entry.Key.Contains(pattern, StringComparison.OrdinalIgnoreCase)
-                && (entry.Value > minValid)
-                && (entry.Value < maxValid))
+                && (entry.Value >= minValid)
+                && (entry.Value <= maxValid))
             {
                 return entry.Value;
             }
@@ -677,8 +677,8 @@ internal sealed class HardwareMonitorService : IDisposable
         {
             if (entry.Key.Contains(pattern1, StringComparison.OrdinalIgnoreCase)
                 && entry.Key.Contains(pattern2, StringComparison.OrdinalIgnoreCase)
-                && (entry.Value > minValid)
-                && (entry.Value < maxValid))
+                && (entry.Value >= minValid)
+                && (entry.Value <= maxValid))
             {
                 return entry.Value;
             }

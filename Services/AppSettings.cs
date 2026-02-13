@@ -200,6 +200,31 @@ public sealed class AppSettings
     public string LabelColor { get; set; } = "#AAAAAA";
 
     /// <summary>
+    /// Whether to hide the taskbar overlay while keeping the tray icon alive.
+    /// </summary>
+    public bool HideOverlay { get; set; }
+
+    /// <summary>
+    /// Whether to enable the local HTTP server for the Xeneon Edge widget.
+    /// </summary>
+    public bool WebServerEnabled { get; set; }
+
+    /// <summary>
+    /// Port number for the local metrics web server.
+    /// </summary>
+    public int WebServerPort { get; set; } = 5123;
+
+    /// <summary>
+    /// Background color of the Xeneon Edge dashboard.
+    /// </summary>
+    public string DashboardBgColor { get; set; } = "#0A0A0A";
+
+    /// <summary>
+    /// Card background color on the Xeneon Edge dashboard.
+    /// </summary>
+    public string DashboardCardColor { get; set; } = "#141414";
+
+    /// <summary>
     /// Gets the color hex string for the given metric key.
     /// </summary>
     public string GetColor(string metricKey)
@@ -468,10 +493,16 @@ public sealed class AppSettings
     }
 
     /// <summary>
-    /// Path to the settings JSON file next to the executable.
+    /// Path to the settings JSON file in the user's AppData folder.
+    /// </summary>
+    private static string SettingsDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SysGlance");
+
+    /// <summary>
+    /// Full path to the settings JSON file.
     /// </summary>
     private static string SettingsFilePath =>
-        Path.Combine(AppContext.BaseDirectory, "settings.json");
+        Path.Combine(SettingsDirectory, "settings.json");
 
     /// <summary>
     /// Loads settings from disk, returning defaults if missing or invalid.
@@ -512,6 +543,16 @@ public sealed class AppSettings
     /// </summary>
     private void EnsureAllMetrics()
     {
+        // Guard against null collections from corrupted JSON.
+        MetricOrder ??= [.. AllMetricKeys];
+        Visibility ??= AllMetricKeys.ToDictionary(k => k, k => DefaultVisible.Contains(k));
+        Colors ??= new Dictionary<string, string>(DefaultColors);
+        LabelColor ??= "#AAAAAA";
+        Position ??= "Left";
+        TargetMonitor ??= "Secondary";
+        DashboardBgColor ??= "#0A0A0A";
+        DashboardCardColor ??= "#141414";
+
         var knownKeys = new HashSet<string>(AllMetricKeys);
 
         // Add any missing metrics to the end of MetricOrder.
@@ -539,6 +580,7 @@ public sealed class AppSettings
     /// </summary>
     public void Save()
     {
+        Directory.CreateDirectory(SettingsDirectory);
         var options = new JsonSerializerOptions { WriteIndented = true };
         string json = JsonSerializer.Serialize(this, options);
         File.WriteAllText(SettingsFilePath, json);
