@@ -185,7 +185,7 @@ public sealed class AppSettings
     public string Position { get; set; } = "Left";
 
     /// <summary>
-    /// Which monitor to dock to: "Primary" or "Secondary".
+    /// Which monitor to dock to: "Primary", "Secondary", or "Tertiary".
     /// </summary>
     public string TargetMonitor { get; set; } = "Secondary";
 
@@ -550,6 +550,10 @@ public sealed class AppSettings
         LabelColor ??= "#AAAAAA";
         Position ??= "Left";
         TargetMonitor ??= "Secondary";
+        if ((TargetMonitor != "Primary") && (TargetMonitor != "Secondary") && (TargetMonitor != "Tertiary"))
+        {
+            TargetMonitor = "Secondary";
+        }
         DashboardBgColor ??= "#0A0A0A";
         DashboardCardColor ??= "#141414";
 

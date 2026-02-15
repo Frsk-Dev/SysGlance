@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using SysGlance.Services;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
@@ -17,8 +18,13 @@ namespace SysGlance;
 /// </summary>
 public partial class SettingsWindow : Window
 {
+    private static readonly HashSet<string> BenchmarkRecordingMetrics =
+        ["FpsMin", "FpsAvg", "FpsMax", "Fps1Low", "Fps01Low"];
+
     private readonly AppSettings settings;
     private readonly Action onSettingsChanged;
+    private readonly DispatcherTimer saveNotifyDebounceTimer;
+    private bool saveNotifyPending;
     private bool isInitializing = true;
 
     /// <summary>
@@ -30,8 +36,15 @@ public partial class SettingsWindow : Window
 
         settings = currentSettings;
         onSettingsChanged = onChanged;
+        saveNotifyDebounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(120)
+        };
+        saveNotifyDebounceTimer.Tick += (_, _) => FlushPendingSaveAndNotify();
+        Closing += (_, _) => FlushPendingSaveAndNotify();
 
         BuildMetricList();
+        UpdateBenchmarkNoticeVisibility();
 
         // Label color picker.
         LabelColorPicker.SelectedColor = (Color)ColorConverter.ConvertFromString(settings.LabelColor);
@@ -57,13 +70,17 @@ public partial class SettingsWindow : Window
                 break;
         }
 
-        if (settings.TargetMonitor == "Primary")
+        switch (settings.TargetMonitor)
         {
-            MonitorPrimaryRadio.IsChecked = true;
-        }
-        else
-        {
-            MonitorSecondaryRadio.IsChecked = true;
+            case "Primary":
+                MonitorPrimaryRadio.IsChecked = true;
+                break;
+            case "Tertiary":
+                MonitorTertiaryRadio.IsChecked = true;
+                break;
+            default:
+                MonitorSecondaryRadio.IsChecked = true;
+                break;
         }
 
         StartupCheckBox.IsChecked = settings.StartWithWindows;
@@ -111,6 +128,7 @@ public partial class SettingsWindow : Window
         PositionRightRadio.Checked += OnRadioChanged;
         MonitorPrimaryRadio.Checked += OnRadioChanged;
         MonitorSecondaryRadio.Checked += OnRadioChanged;
+        MonitorTertiaryRadio.Checked += OnRadioChanged;
 
         isInitializing = false;
     }
@@ -317,6 +335,7 @@ public partial class SettingsWindow : Window
     {
         settings.SetVisible(metricKey, visible);
         BuildMetricList();
+        UpdateBenchmarkNoticeVisibility();
         SaveAndNotify();
     }
 
@@ -399,9 +418,18 @@ public partial class SettingsWindow : Window
             settings.Position = "Left";
         }
 
-        settings.TargetMonitor = MonitorPrimaryRadio.IsChecked == true
-            ? "Primary"
-            : "Secondary";
+        if (MonitorPrimaryRadio.IsChecked == true)
+        {
+            settings.TargetMonitor = "Primary";
+        }
+        else if (MonitorTertiaryRadio.IsChecked == true)
+        {
+            settings.TargetMonitor = "Tertiary";
+        }
+        else
+        {
+            settings.TargetMonitor = "Secondary";
+        }
 
         SaveAndNotify();
     }
@@ -474,8 +502,34 @@ public partial class SettingsWindow : Window
     /// </summary>
     private void SaveAndNotify()
     {
+        saveNotifyPending = true;
+        saveNotifyDebounceTimer.Stop();
+        saveNotifyDebounceTimer.Start();
+    }
+
+    private void FlushPendingSaveAndNotify()
+    {
+        saveNotifyDebounceTimer.Stop();
+
+        if (!saveNotifyPending)
+        {
+            return;
+        }
+
+        saveNotifyPending = false;
         settings.Save();
         onSettingsChanged();
+    }
+
+    /// <summary>
+    /// Shows a warning when benchmark-only FPS stats are enabled.
+    /// </summary>
+    private void UpdateBenchmarkNoticeVisibility()
+    {
+        bool showNotice = BenchmarkRecordingMetrics.Any(settings.IsVisible);
+        BenchmarkNoticeBox.Visibility = showNotice
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     /// <summary>
