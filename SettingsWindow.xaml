@@ -196,6 +196,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Ko-fi support -->
@@ -226,8 +227,25 @@
                     <StackPanel x:Name="MetricListPanel" />
                 </ScrollViewer>
 
+                <!-- Benchmark-only FPS stats warning -->
+                <Border x:Name="BenchmarkNoticeBox"
+                        Grid.Row="3"
+                        Background="#4A1E1E"
+                        BorderBrush="#CC4444"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="8,6"
+                        Margin="0,0,0,4"
+                        Visibility="Collapsed">
+                    <TextBlock Foreground="#FFB3B3"
+                               FontSize="11"
+                               TextWrapping="Wrap">
+                        FPS Min/Avg/Max and 1%/0.1% Low only populate while MSI Afterburner benchmark recording is active.
+                    </TextBlock>
+                </Border>
+
                 <!-- Label color -->
-                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,4,0,0"
+                <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,4,0,0"
                             VerticalAlignment="Center">
                     <TextBlock Text="Label Color" Foreground="#CCCCCC" FontSize="13"
                                VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -238,17 +256,17 @@
                 </StackPanel>
 
                 <!-- Startup toggle -->
-                <CheckBox x:Name="StartupCheckBox" Grid.Row="4"
+                <CheckBox x:Name="StartupCheckBox" Grid.Row="5"
                           Content="Start with Windows"
                           Foreground="#CCCCCC" Margin="0,8,0,0" />
 
                 <!-- Hide overlay toggle -->
-                <CheckBox x:Name="HideOverlayCheckBox" Grid.Row="5"
+                <CheckBox x:Name="HideOverlayCheckBox" Grid.Row="6"
                           Content="Hide Taskbar Overlay"
                           Foreground="#CCCCCC" Margin="0,6,0,0" />
 
                 <!-- Xeneon Edge section -->
-                <StackPanel Grid.Row="6" Margin="0,10,0,0">
+                <StackPanel Grid.Row="7" Margin="0,10,0,0">
                     <TextBlock Text="Xeneon Edge" Foreground="#CCCCCC" FontSize="14"
                                FontWeight="SemiBold" Margin="0,0,0,4" />
                     <CheckBox x:Name="WebServerCheckBox"
@@ -257,7 +275,7 @@
                 </StackPanel>
 
                 <!-- Web server details (conditionally visible) -->
-                <StackPanel x:Name="WebServerDetailsPanel" Grid.Row="7"
+                <StackPanel x:Name="WebServerDetailsPanel" Grid.Row="8"
                             Margin="0,6,0,0" Visibility="Collapsed">
                     <!-- Port input -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -310,7 +328,7 @@
                 </StackPanel>
 
                 <!-- Position and monitor selection -->
-                <Grid Grid.Row="8" Margin="0,10,0,0">
+                <Grid Grid.Row="9" Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
@@ -335,6 +353,8 @@
                         <RadioButton x:Name="MonitorPrimaryRadio" Content="Primary"
                                      Foreground="#CCCCCC" GroupName="Monitor" />
                         <RadioButton x:Name="MonitorSecondaryRadio" Content="Secondary"
+                                     Foreground="#CCCCCC" GroupName="Monitor" />
+                        <RadioButton x:Name="MonitorTertiaryRadio" Content="Tertiary"
                                      Foreground="#CCCCCC" GroupName="Monitor" />
                     </StackPanel>
                 </Grid>

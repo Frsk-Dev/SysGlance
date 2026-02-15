@@ -184,13 +184,15 @@ internal sealed class HardwareMonitorService : IDisposable
         float? commitCharge = FindMahmValue(mahm, "Commit charge", 0, 200000);
 
         // FPS and Frametime are only available from Afterburner.
-        float? fps = FindMahmValue(mahm, "Framerate", 0, 10000);
-        float? frametime = FindMahmValue(mahm, "Frametime", 0, 1000);
-        float? fpsMin = FindMahmValue(mahm, "Framerate Min", 0, 10000);
-        float? fpsAvg = FindMahmValue(mahm, "Framerate Avg", 0, 10000);
-        float? fpsMax = FindMahmValue(mahm, "Framerate Max", 0, 10000);
-        float? fps1Low = FindMahmValue(mahm, "Framerate 1% Low", 0, 10000);
-        float? fps01Low = FindMahmValue(mahm, "Framerate 0.1% Low", 0, 10000);
+        // Use exact/normalized matching here so "Framerate" doesn't get shadowed
+        // by "Framerate Min/Avg/Max" substring matches.
+        float? fps = FindMahmValueExact(mahm, "Framerate", 0, 10000);
+        float? frametime = FindMahmValueExact(mahm, "Frametime", 0, 1000);
+        float? fpsMin = FindMahmValueExact(mahm, "Framerate Min", 0, 10000);
+        float? fpsAvg = FindMahmValueExact(mahm, "Framerate Avg", 0, 10000);
+        float? fpsMax = FindMahmValueExact(mahm, "Framerate Max", 0, 10000);
+        float? fps1Low = FindMahmValueExact(mahm, "Framerate 1% Low", 0, 10000);
+        float? fps01Low = FindMahmValueExact(mahm, "Framerate 0.1% Low", 0, 10000);
 
         // GPU1 sensors from Afterburner.
         float? gpu1Temp = FindMahmValue(mahm, "GPU1 temperature", 5, 130);
@@ -630,6 +632,11 @@ internal sealed class HardwareMonitorService : IDisposable
                 long dataOffset = entryOffset + (5L * MaxPath);
                 float value = accessor.ReadSingle(dataOffset);
 
+                if (float.IsNaN(value) || float.IsInfinity(value))
+                {
+                    continue;
+                }
+
                 result[srcName] = value;
             }
         }
@@ -650,17 +657,28 @@ internal sealed class HardwareMonitorService : IDisposable
         float minValid,
         float maxValid)
     {
+        float? bestValue = null;
+        int bestScore = int.MaxValue;
+
         foreach (KeyValuePair<string, float> entry in entries)
         {
             if (entry.Key.Contains(pattern, StringComparison.OrdinalIgnoreCase)
-                && (entry.Value >= minValid)
-                && (entry.Value <= maxValid))
+                && IsValidMahmValue(entry.Value, minValid, maxValid))
             {
-                return entry.Value;
+                // Prefer exact matches, then shortest candidate name.
+                int score = entry.Key.Equals(pattern, StringComparison.OrdinalIgnoreCase)
+                    ? 0
+                    : entry.Key.Length;
+
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestValue = entry.Value;
+                }
             }
         }
 
-        return null;
+        return bestValue;
     }
 
     /// <summary>
@@ -673,18 +691,81 @@ internal sealed class HardwareMonitorService : IDisposable
         float minValid,
         float maxValid)
     {
+        float? bestValue = null;
+        int bestScore = int.MaxValue;
+
         foreach (KeyValuePair<string, float> entry in entries)
         {
             if (entry.Key.Contains(pattern1, StringComparison.OrdinalIgnoreCase)
                 && entry.Key.Contains(pattern2, StringComparison.OrdinalIgnoreCase)
-                && (entry.Value >= minValid)
-                && (entry.Value <= maxValid))
+                && IsValidMahmValue(entry.Value, minValid, maxValid))
+            {
+                int score = entry.Key.Length;
+
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestValue = entry.Value;
+                }
+            }
+        }
+
+        return bestValue;
+    }
+
+    /// <summary>
+    /// Finds a MAHM entry by exact key match (with normalized fallback) within the valid range.
+    /// </summary>
+    private static float? FindMahmValueExact(
+        Dictionary<string, float> entries,
+        string key,
+        float minValid,
+        float maxValid)
+    {
+        string normalizedKey = NormalizeMahmName(key);
+
+        foreach (KeyValuePair<string, float> entry in entries)
+        {
+            if (!IsValidMahmValue(entry.Value, minValid, maxValid))
+            {
+                continue;
+            }
+
+            if (entry.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                return entry.Value;
+            }
+
+            if (NormalizeMahmName(entry.Key).Equals(normalizedKey, StringComparison.Ordinal))
             {
                 return entry.Value;
             }
         }
 
         return null;
+    }
+
+    private static bool IsValidMahmValue(float value, float minValid, float maxValid)
+    {
+        return !float.IsNaN(value)
+            && !float.IsInfinity(value)
+            && (value >= minValid)
+            && (value <= maxValid);
+    }
+
+    private static string NormalizeMahmName(string name)
+    {
+        var builder = new StringBuilder(name.Length);
+
+        foreach (char c in name)
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                builder.Append(char.ToLowerInvariant(c));
+            }
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>

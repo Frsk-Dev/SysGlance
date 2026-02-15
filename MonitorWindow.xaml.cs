@@ -18,7 +18,8 @@ namespace SysGlance;
 public partial class MonitorWindow : Window
 {
     /// <summary>
-    /// Metrics only shown when actively reporting data (e.g. in-game).
+    /// Metrics that are game-related and may be unavailable in some sessions.
+    /// They remain visible when enabled and show placeholders until populated.
     /// </summary>
     private static readonly HashSet<string> GameOnlyMetrics =
         ["Fps", "FpsMin", "FpsAvg", "FpsMax", "Fps1Low", "Fps01Low", "Frametime"];
@@ -29,10 +30,11 @@ public partial class MonitorWindow : Window
     private readonly Dictionary<string, TextBlock> valueTextBlocks = new();
     private volatile SystemMetrics latestMetrics = new();
     private volatile bool isRunning = true;
-    private bool gameMetricsWereVisible;
     private IntPtr windowHandle;
     private AppSettings settings;
     private MetricsWebServer? webServer;
+    private bool lastWebServerEnabled;
+    private int lastWebServerPort;
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -62,6 +64,8 @@ public partial class MonitorWindow : Window
         InitializeComponent();
 
         settings = AppSettings.Load();
+        lastWebServerEnabled = settings.WebServerEnabled;
+        lastWebServerPort = settings.WebServerPort;
 
         var trayMenu = new System.Windows.Forms.ContextMenuStrip
         {
@@ -154,7 +158,7 @@ public partial class MonitorWindow : Window
         ForceAboveTaskbar();
         updateTimer.Start();
         ApplyOverlayVisibility();
-        StartWebServerIfEnabled();
+        SyncWebServerState(force: true);
     }
 
     /// <summary>
@@ -184,7 +188,7 @@ public partial class MonitorWindow : Window
             BuildOverlay();
             DockToTaskbar();
             ApplyOverlayVisibility();
-            StartWebServerIfEnabled();
+            SyncWebServerState();
         })
         {
             Owner = this
@@ -282,11 +286,6 @@ public partial class MonitorWindow : Window
                 continue;
             }
 
-            if (GameOnlyMetrics.Contains(key) && (MetricFormatter.GetMetricValue(key, latestMetrics) == null))
-            {
-                continue;
-            }
-
             visibleKeys.Add(key);
         }
 
@@ -344,25 +343,26 @@ public partial class MonitorWindow : Window
     {
         SystemMetrics metrics = latestMetrics;
 
-        bool gameMetricsNowVisible = false;
-        foreach (string key in GameOnlyMetrics)
-        {
-            if (settings.IsVisible(key) && (MetricFormatter.GetMetricValue(key, metrics) != null))
-            {
-                gameMetricsNowVisible = true;
-                break;
-            }
-        }
-
-        if (gameMetricsNowVisible != gameMetricsWereVisible)
-        {
-            gameMetricsWereVisible = gameMetricsNowVisible;
-            BuildOverlay();
-        }
-
         foreach (KeyValuePair<string, TextBlock> entry in valueTextBlocks)
         {
             entry.Value.Text = MetricFormatter.FormatMetricValue(entry.Key, metrics);
+        }
+    }
+
+    /// <summary>
+    /// Applies web server changes only when relevant settings actually changed.
+    /// </summary>
+    private void SyncWebServerState(bool force = false)
+    {
+        bool enabledChanged = settings.WebServerEnabled != lastWebServerEnabled;
+        bool portChanged = settings.WebServerPort != lastWebServerPort;
+        bool missingServer = settings.WebServerEnabled && (webServer is null);
+
+        if (force || enabledChanged || portChanged || missingServer)
+        {
+            StartWebServerIfEnabled();
+            lastWebServerEnabled = settings.WebServerEnabled;
+            lastWebServerPort = settings.WebServerPort;
         }
     }
 
@@ -427,19 +427,7 @@ public partial class MonitorWindow : Window
     private void DockToTaskbar()
     {
         System.Windows.Forms.Screen[] screens = System.Windows.Forms.Screen.AllScreens;
-
-        System.Windows.Forms.Screen targetScreen;
-
-        if (settings.TargetMonitor == "Primary")
-        {
-            targetScreen = screens.First(s => s.Primary);
-        }
-        else
-        {
-                targetScreen = screens.Length > 1
-                ? screens.First(s => !s.Primary)
-                : screens[0];
-        }
+        System.Windows.Forms.Screen targetScreen = SelectTargetScreen(screens, settings.TargetMonitor);
 
         System.Drawing.Rectangle bounds = targetScreen.Bounds;
         System.Drawing.Rectangle workArea = targetScreen.WorkingArea;
@@ -482,6 +470,40 @@ public partial class MonitorWindow : Window
                     break;
             }
         }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// Selects the desired monitor with graceful fallbacks for lower monitor counts.
+    /// </summary>
+    private static System.Windows.Forms.Screen SelectTargetScreen(
+        System.Windows.Forms.Screen[] screens,
+        string targetMonitor)
+    {
+        if (screens.Length == 0)
+        {
+            return System.Windows.Forms.Screen.PrimaryScreen ?? throw new InvalidOperationException("No screens available.");
+        }
+
+        System.Windows.Forms.Screen primary =
+            screens.FirstOrDefault(s => s.Primary) ?? screens[0];
+
+        List<System.Windows.Forms.Screen> nonPrimary =
+            screens.Where(s => !s.Primary).ToList();
+
+        return targetMonitor switch
+        {
+            "Primary" => primary,
+            "Secondary" => nonPrimary.ElementAtOrDefault(0)
+                ?? screens.ElementAtOrDefault(1)
+                ?? primary,
+            "Tertiary" => nonPrimary.ElementAtOrDefault(1)
+                ?? screens.ElementAtOrDefault(2)
+                ?? nonPrimary.ElementAtOrDefault(0)
+                ?? primary,
+            _ => nonPrimary.ElementAtOrDefault(0)
+                ?? screens.ElementAtOrDefault(1)
+                ?? primary
+        };
     }
 }
 
