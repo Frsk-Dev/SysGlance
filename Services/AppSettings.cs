@@ -200,6 +200,11 @@ public sealed class AppSettings
     public string LabelColor { get; set; } = "#AAAAAA";
 
     /// <summary>
+    /// Font size in points for both labels and metric values in the overlay.
+    /// </summary>
+    public int FontSize { get; set; } = 12;
+
+    /// <summary>
     /// Whether to hide the taskbar overlay while keeping the tray icon alive.
     /// </summary>
     public bool HideOverlay { get; set; }
@@ -223,6 +228,11 @@ public sealed class AppSettings
     /// Card background color on the Xeneon Edge dashboard.
     /// </summary>
     public string DashboardCardColor { get; set; } = "#141414";
+
+    /// <summary>
+    /// Font scale percentage for text in the Xeneon Edge dashboard (50–200).
+    /// </summary>
+    public int DashboardFontScale { get; set; } = 100;
 
     /// <summary>
     /// Gets the color hex string for the given metric key.
@@ -556,6 +566,8 @@ public sealed class AppSettings
         }
         DashboardBgColor ??= "#0A0A0A";
         DashboardCardColor ??= "#141414";
+        FontSize = Math.Clamp(FontSize, 8, 20);
+        DashboardFontScale = Math.Clamp(DashboardFontScale, 50, 200);
 
         var knownKeys = new HashSet<string>(AllMetricKeys);
 

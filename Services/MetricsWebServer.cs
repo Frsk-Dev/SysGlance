@@ -187,7 +187,8 @@ internal sealed class MetricsWebServer : IDisposable
         {
             metrics = metricsList,
             bgColor = currentSettings.DashboardBgColor,
-            cardColor = currentSettings.DashboardCardColor
+            cardColor = currentSettings.DashboardCardColor,
+            fontScale = currentSettings.DashboardFontScale / 100.0
         });
         byte[] buffer = Encoding.UTF8.GetBytes(json);
 

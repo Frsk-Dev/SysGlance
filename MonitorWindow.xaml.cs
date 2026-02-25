@@ -58,14 +58,22 @@ public partial class MonitorWindow : Window
 
     /// <summary>
     /// Initializes the overlay, tray icon, and polling thread.
+    /// Accepts the early-start server from Program.Main so it can be cleanly
+    /// replaced with one that references this instance's live metrics and settings.
     /// </summary>
-    public MonitorWindow()
+    public MonitorWindow(IDisposable? earlyServer = null)
     {
         InitializeComponent();
 
         settings = AppSettings.Load();
         lastWebServerEnabled = settings.WebServerEnabled;
         lastWebServerPort = settings.WebServerPort;
+
+        // Dispose the early server and start a replacement that captures this
+        // instance's live fields.  The brief gap (< 10 ms) between the two is
+        // handled gracefully by the dashboard's fetch loop.
+        earlyServer?.Dispose();
+        StartWebServerIfEnabled();
 
         var trayMenu = new System.Windows.Forms.ContextMenuStrip
         {
@@ -158,7 +166,7 @@ public partial class MonitorWindow : Window
         ForceAboveTaskbar();
         updateTimer.Start();
         ApplyOverlayVisibility();
-        SyncWebServerState(force: true);
+        SyncWebServerState();
     }
 
     /// <summary>
@@ -299,7 +307,7 @@ public partial class MonitorWindow : Window
             {
                 Text = label,
                 Foreground = new SolidColorBrush(SafeParseColor(settings.LabelColor, "#AAAAAA")),
-                FontSize = 12,
+                FontSize = settings.FontSize,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 3, 0)
             };
@@ -308,10 +316,10 @@ public partial class MonitorWindow : Window
             {
                 Text = "--",
                 Foreground = new SolidColorBrush(SafeParseColor(colorHex)),
-                FontSize = 12,
+                FontSize = settings.FontSize,
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
-                MinWidth = MeasureTextWidth(MetricFormatter.GetMaxWidthText(key), 12, FontWeights.SemiBold)
+                MinWidth = MeasureTextWidth(MetricFormatter.GetMaxWidthText(key), settings.FontSize, FontWeights.SemiBold)
             };
 
             valueTextBlocks[key] = valueBlock;
@@ -327,7 +335,7 @@ public partial class MonitorWindow : Window
                 {
                     Text = "\u2502",
                     Foreground = new SolidColorBrush(SafeParseColor("#555555")),
-                    FontSize = 12,
+                    FontSize = settings.FontSize,
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(4, 0, 4, 0)
                 };
