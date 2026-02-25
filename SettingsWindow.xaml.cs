@@ -122,6 +122,16 @@ public partial class SettingsWindow : Window
             SaveAndNotify();
         };
 
+        // Font size buttons.
+        FontSizeValueText.Text = settings.FontSize.ToString();
+        FontSizeDecButton.Click += (_, _) => OnFontSizeChanged(-1);
+        FontSizeIncButton.Click += (_, _) => OnFontSizeChanged(1);
+
+        // Dashboard text scale buttons.
+        DashFontScaleValueText.Text = $"{settings.DashboardFontScale}%";
+        DashFontScaleDecButton.Click += (_, _) => OnDashFontScaleChanged(-10);
+        DashFontScaleIncButton.Click += (_, _) => OnDashFontScaleChanged(10);
+
         // Wire events after initial population to avoid false triggers.
         PositionLeftRadio.Checked += OnRadioChanged;
         PositionCenterRadio.Checked += OnRadioChanged;
@@ -298,31 +308,55 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// Toggles the Windows startup registry entry.
+    /// Toggles the Windows startup Task Scheduler entry.
+    /// Uses Task Scheduler with the highest available privilege so SysGlance
+    /// starts as early as possible at logon, ahead of iCUE loading the
+    /// Xeneon Edge iframe.  Also cleans up any legacy HKCU\Run entry.
     /// </summary>
     private void OnStartupToggled(bool enabled)
     {
         settings.StartWithWindows = enabled;
 
-        using Microsoft.Win32.RegistryKey? key =
+        // Always remove any legacy HKCU\Run entry left from older versions.
+        using Microsoft.Win32.RegistryKey? runKey =
             Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Run", true);
 
-        if (key != null)
-        {
-            if (enabled)
-            {
-                string appPath = Environment.ProcessPath ?? "";
+        runKey?.DeleteValue("SysGlance", false);
 
-                if (!string.IsNullOrEmpty(appPath))
-                {
-                    key.SetValue("SysGlance", $"\"{appPath}\"");
-                }
-            }
-            else
+        string appPath = Environment.ProcessPath ?? "";
+
+        if (enabled && !string.IsNullOrEmpty(appPath))
+        {
+            using var createProc = new System.Diagnostics.Process
             {
-                key.DeleteValue("SysGlance", false);
-            }
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "schtasks.exe",
+                    Arguments = $"/create /tn \"SysGlance\" /tr \"\\\"{appPath}\\\"\" /sc onlogon /rl highest /f",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                }
+            };
+
+            createProc.Start();
+            createProc.WaitForExit(3000);
+        }
+        else
+        {
+            using var deleteProc = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "schtasks.exe",
+                    Arguments = "/delete /tn \"SysGlance\" /f",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                }
+            };
+
+            deleteProc.Start();
+            deleteProc.WaitForExit(3000);
         }
 
         SaveAndNotify();
@@ -440,6 +474,26 @@ public partial class SettingsWindow : Window
     private void OnHideOverlayToggled(bool hidden)
     {
         settings.HideOverlay = hidden;
+        SaveAndNotify();
+    }
+
+    /// <summary>
+    /// Increments or decrements the overlay font size within the allowed range.
+    /// </summary>
+    private void OnFontSizeChanged(int delta)
+    {
+        settings.FontSize = Math.Clamp(settings.FontSize + delta, 8, 20);
+        FontSizeValueText.Text = settings.FontSize.ToString();
+        SaveAndNotify();
+    }
+
+    /// <summary>
+    /// Increments or decrements the dashboard text scale percentage within the allowed range.
+    /// </summary>
+    private void OnDashFontScaleChanged(int delta)
+    {
+        settings.DashboardFontScale = Math.Clamp(settings.DashboardFontScale + delta, 50, 200);
+        DashFontScaleValueText.Text = $"{settings.DashboardFontScale}%";
         SaveAndNotify();
     }
 

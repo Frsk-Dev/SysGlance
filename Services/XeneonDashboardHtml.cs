@@ -18,6 +18,7 @@ internal static class XeneonDashboardHtml
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>SysGlance</title>
         <style>
+            :root { --fs: 1; }
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
                 background: #0A0A0A;
@@ -90,7 +91,7 @@ internal static class XeneonDashboardHtml
                 height: 100%;
             }
             .gauge-label {
-                font-size: clamp(10px, 2.2vmin, 16px);
+                font-size: calc(clamp(10px, 2.2vmin, 16px) * var(--fs));
                 font-weight: 600;
                 letter-spacing: 1.5px;
                 text-transform: uppercase;
@@ -192,18 +193,18 @@ internal static class XeneonDashboardHtml
 
         function valueFontSize(text) {
             const len = text.length;
-            if (len <= 3) return 'clamp(16px, 4.5vmin, 32px)';
-            if (len <= 5) return 'clamp(13px, 3.5vmin, 26px)';
-            if (len <= 7) return 'clamp(11px, 2.8vmin, 20px)';
-            return 'clamp(9px, 2.2vmin, 16px)';
+            if (len <= 3) return 'calc(clamp(16px, 4.5vmin, 32px) * var(--fs))';
+            if (len <= 5) return 'calc(clamp(13px, 3.5vmin, 26px) * var(--fs))';
+            if (len <= 7) return 'calc(clamp(11px, 2.8vmin, 20px) * var(--fs))';
+            return 'calc(clamp(9px, 2.2vmin, 16px) * var(--fs))';
         }
 
         function counterFontSize(text) {
             const len = text.length;
-            if (len <= 3) return 'clamp(24px, 7vmin, 48px)';
-            if (len <= 5) return 'clamp(18px, 5.5vmin, 38px)';
-            if (len <= 7) return 'clamp(14px, 4vmin, 28px)';
-            return 'clamp(11px, 3vmin, 22px)';
+            if (len <= 3) return 'calc(clamp(24px, 7vmin, 48px) * var(--fs))';
+            if (len <= 5) return 'calc(clamp(18px, 5.5vmin, 38px) * var(--fs))';
+            if (len <= 7) return 'calc(clamp(14px, 4vmin, 28px) * var(--fs))';
+            return 'calc(clamp(11px, 3vmin, 22px) * var(--fs))';
         }
 
         function createGaugeCard(metric) {
@@ -343,6 +344,9 @@ internal static class XeneonDashboardHtml
             if (data.cardColor) {
                 document.querySelectorAll('.card, .counter-card').forEach(c => c.style.background = data.cardColor);
             }
+            if (data.fontScale != null) {
+                document.documentElement.style.setProperty('--fs', data.fontScale);
+            }
         }
 
         // Force rebuild when keys change or container resizes.
@@ -391,6 +395,8 @@ internal static class XeneonDashboardHtml
             resizeTimer = setTimeout(() => { lastBuiltKey = ''; }, 200);
         });
 
+        let failCount = 0;
+
         async function fetchAndUpdate() {
             try {
                 const res = await fetch(ENDPOINT);
@@ -398,6 +404,15 @@ internal static class XeneonDashboardHtml
                 const metrics = data.metrics;
                 const errorMsg = document.getElementById('errorMsg');
                 errorMsg.style.display = 'none';
+
+                // Server just came back after a meaningful outage — reload so the
+                // page initialises cleanly against the new server instance.
+                if (failCount >= 8) {
+                    location.reload();
+                    return;
+                }
+
+                failCount = 0;
 
                 const newKey = metrics.map(m => m.key).join(',') + '|' + getCardsPerPage();
                 if (newKey !== lastBuiltKey) {
@@ -412,6 +427,7 @@ internal static class XeneonDashboardHtml
 
                 applyColors(data);
             } catch {
+                failCount++;
                 document.getElementById('errorMsg').style.display = 'block';
             }
         }

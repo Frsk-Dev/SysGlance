@@ -197,6 +197,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Ko-fi support -->
@@ -255,18 +256,35 @@
                                             ToolTip="Click to change label color" />
                 </StackPanel>
 
+                <!-- Font size -->
+                <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,6,0,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Font Size" Foreground="#CCCCCC" FontSize="13"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Button x:Name="FontSizeDecButton" Content="&#x2212;"
+                            Width="24" Height="24" FontSize="14" Padding="0" />
+                    <TextBlock x:Name="FontSizeValueText"
+                               Foreground="#CCCCCC" FontSize="13"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center"
+                               Width="28"
+                               Margin="4,0" />
+                    <Button x:Name="FontSizeIncButton" Content="+"
+                            Width="24" Height="24" FontSize="14" Padding="0" />
+                </StackPanel>
+
                 <!-- Startup toggle -->
-                <CheckBox x:Name="StartupCheckBox" Grid.Row="5"
+                <CheckBox x:Name="StartupCheckBox" Grid.Row="6"
                           Content="Start with Windows"
                           Foreground="#CCCCCC" Margin="0,8,0,0" />
 
                 <!-- Hide overlay toggle -->
-                <CheckBox x:Name="HideOverlayCheckBox" Grid.Row="6"
+                <CheckBox x:Name="HideOverlayCheckBox" Grid.Row="7"
                           Content="Hide Taskbar Overlay"
                           Foreground="#CCCCCC" Margin="0,6,0,0" />
 
                 <!-- Xeneon Edge section -->
-                <StackPanel Grid.Row="7" Margin="0,10,0,0">
+                <StackPanel Grid.Row="8" Margin="0,10,0,0">
                     <TextBlock Text="Xeneon Edge" Foreground="#CCCCCC" FontSize="14"
                                FontWeight="SemiBold" Margin="0,0,0,4" />
                     <CheckBox x:Name="WebServerCheckBox"
@@ -275,7 +293,7 @@
                 </StackPanel>
 
                 <!-- Web server details (conditionally visible) -->
-                <StackPanel x:Name="WebServerDetailsPanel" Grid.Row="8"
+                <StackPanel x:Name="WebServerDetailsPanel" Grid.Row="9"
                             Margin="0,6,0,0" Visibility="Collapsed">
                     <!-- Port input -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -325,10 +343,27 @@
                                                 ShowAlpha="False"
                                                 ToolTip="Dashboard card color" />
                     </StackPanel>
+
+                    <!-- Text scale -->
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="Text Scale" Foreground="#CCCCCC" FontSize="12"
+                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Button x:Name="DashFontScaleDecButton" Content="&#x2212;"
+                                Width="24" Height="24" FontSize="14" Padding="0" />
+                        <TextBlock x:Name="DashFontScaleValueText"
+                                   Foreground="#CCCCCC" FontSize="12"
+                                   VerticalAlignment="Center"
+                                   TextAlignment="Center"
+                                   Width="44"
+                                   Margin="4,0" />
+                        <Button x:Name="DashFontScaleIncButton" Content="+"
+                                Width="24" Height="24" FontSize="14" Padding="0" />
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Position and monitor selection -->
-                <Grid Grid.Row="9" Margin="0,10,0,0">
+                <Grid Grid.Row="10" Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
