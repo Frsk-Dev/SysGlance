@@ -308,55 +308,31 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// Toggles the Windows startup Task Scheduler entry.
-    /// Uses Task Scheduler with the highest available privilege so SysGlance
-    /// starts as early as possible at logon, ahead of iCUE loading the
-    /// Xeneon Edge iframe.  Also cleans up any legacy HKCU\Run entry.
+    /// Toggles the Windows startup registry entry under HKCU\Run.
     /// </summary>
     private void OnStartupToggled(bool enabled)
     {
         settings.StartWithWindows = enabled;
 
-        // Always remove any legacy HKCU\Run entry left from older versions.
-        using Microsoft.Win32.RegistryKey? runKey =
+        using Microsoft.Win32.RegistryKey? key =
             Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Run", true);
 
-        runKey?.DeleteValue("SysGlance", false);
-
-        string appPath = Environment.ProcessPath ?? "";
-
-        if (enabled && !string.IsNullOrEmpty(appPath))
+        if (key != null)
         {
-            using var createProc = new System.Diagnostics.Process
+            if (enabled)
             {
-                StartInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "schtasks.exe",
-                    Arguments = $"/create /tn \"SysGlance\" /tr \"\\\"{appPath}\\\"\" /sc onlogon /rl highest /f",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                }
-            };
+                string appPath = Environment.ProcessPath ?? "";
 
-            createProc.Start();
-            createProc.WaitForExit(3000);
-        }
-        else
-        {
-            using var deleteProc = new System.Diagnostics.Process
+                if (!string.IsNullOrEmpty(appPath))
+                {
+                    key.SetValue("SysGlance", $"\"{appPath}\"");
+                }
+            }
+            else
             {
-                StartInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "schtasks.exe",
-                    Arguments = "/delete /tn \"SysGlance\" /f",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                }
-            };
-
-            deleteProc.Start();
-            deleteProc.WaitForExit(3000);
+                key.DeleteValue("SysGlance", false);
+            }
         }
 
         SaveAndNotify();
