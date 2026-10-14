@@ -280,6 +280,8 @@ internal sealed class HardwareMonitorService : IDisposable
         float? cpu15Power = FindMahmValue(mahm, "CPU15 power", 0, 500);
         float? cpu16Power = FindMahmValue(mahm, "CPU16 power", 0, 500);
 
+        (float? netDown, float? netUp) = NetworkSpeedMonitor.Instance.Sample();
+
         return new SystemMetrics
         {
             CpuTemperature = cpuTemp,
@@ -309,6 +311,8 @@ internal sealed class HardwareMonitorService : IDisposable
             RamUsedGb = ramUsedGb,
             RamTotalGb = ramTotalGb,
             CommitCharge = commitCharge,
+            NetDown = netDown,
+            NetUp = netUp,
             Fps = fps,
             FpsMin = fpsMin,
             FpsAvg = fpsAvg,

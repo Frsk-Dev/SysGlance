@@ -177,6 +177,16 @@ public sealed class SystemMetrics
     public float? CommitCharge { get; init; }
 
     /// <summary>
+    /// Download speed across the real network adapters, in megabits per second.
+    /// </summary>
+    public float? NetDown { get; init; }
+
+    /// <summary>
+    /// Upload speed across the real network adapters, in megabits per second.
+    /// </summary>
+    public float? NetUp { get; init; }
+
+    /// <summary>
     /// GPU1 temperature in degrees Celsius.
     /// </summary>
     public float? Gpu1Temperature { get; init; }

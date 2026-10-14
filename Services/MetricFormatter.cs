@@ -38,6 +38,8 @@ internal static class MetricFormatter
             "GpuNoLoadLimit" => metrics.GpuNoLoadLimit,
             "Ram" => metrics.RamUsedGb,
             "CommitCharge" => metrics.CommitCharge,
+            "NetDown" => metrics.NetDown,
+            "NetUp" => metrics.NetUp,
             "Fps" => metrics.Fps,
             "FpsMin" => metrics.FpsMin,
             "FpsAvg" => metrics.FpsAvg,
@@ -166,6 +168,7 @@ internal static class MetricFormatter
                 "GpuVram" or "CommitCharge" or "Gpu1Mem" or "Gpu1MemProcess"
                     or "Gpu2MemProcess" or "RamProcess" => "-- MB",
                 "Ram" => "-- GB",
+                "NetDown" or "NetUp" => "-- Mbps",
                 "Frametime" => "-- ms",
                 "GpuTempLimit" or "GpuPowerLimit" or "GpuVoltageLimit"
                     or "GpuNoLoadLimit" => "--",
@@ -207,6 +210,7 @@ internal static class MetricFormatter
             "GpuVram" or "CommitCharge" or "Gpu1Mem" or "Gpu1MemProcess"
                 or "Gpu2MemProcess" or "RamProcess" => $"{value:F0} MB",
             "Ram" => $"{value:F1} GB",
+            "NetDown" or "NetUp" => FormatMbps(value.Value),
             "Fps" or "FpsMin" or "FpsAvg" or "FpsMax"
                 or "Fps1Low" or "Fps01Low" => $"{value:F0}",
             "Frametime" => $"{value:F1} ms",
@@ -215,6 +219,16 @@ internal static class MetricFormatter
             _ => $"{value:F1}"
         };
     }
+
+    /// <summary>
+    /// Megabits per second: two decimals below 1, one below 100, whole numbers above.
+    /// </summary>
+    private static string FormatMbps(float mbps) => mbps switch
+    {
+        < 1 => $"{mbps:F2} Mbps",
+        < 100 => $"{mbps:F1} Mbps",
+        _ => $"{mbps:F0} Mbps"
+    };
 
     /// <summary>
     /// Returns the widest expected string for a metric, used to set MinWidth.
@@ -255,6 +269,7 @@ internal static class MetricFormatter
             "GpuVram" or "CommitCharge" or "Gpu1Mem" or "Gpu1MemProcess"
                 or "Gpu2MemProcess" or "RamProcess" => "00000 MB",
             "Ram" => "00.0 GB",
+            "NetDown" or "NetUp" => "000.0 Mbps",
             "Fps" or "FpsMin" or "FpsAvg" or "FpsMax"
                 or "Fps1Low" or "Fps01Low" => "000",
             "Frametime" => "00.0 ms",

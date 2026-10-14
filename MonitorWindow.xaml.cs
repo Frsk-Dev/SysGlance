@@ -33,6 +33,22 @@ public partial class MonitorWindow : Window
     private IntPtr windowHandle;
     private AppSettings settings;
     private MetricsWebServer? webServer;
+    private SettingsWindow? openSettingsWindow;
+    private readonly PairingService pairing;
+    private PairingWindow? pairingWindow;
+    private readonly DesktopWidgetManager desktopWidgets;
+
+    /// <summary>
+    /// Retries the Edge connection server while its port is taken (e.g. another program had it at start-up).
+    /// </summary>
+    private readonly DispatcherTimer serverRetryTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+
+    // Updates: first check shortly after start-up, then every 6 hours.
+    private readonly DispatcherTimer updateCheckTimer = new() { Interval = TimeSpan.FromSeconds(15) };
+    private readonly UpdateService updateService = new();
+    private UpdateService.UpdateInfo? availableUpdate;
+    private UpdateWindow? updateWindow;
+    private System.Windows.Forms.ToolStripMenuItem? updateMenuItem;
     private bool lastWebServerEnabled;
     private int lastWebServerPort;
 
@@ -68,6 +84,17 @@ public partial class MonitorWindow : Window
         settings = AppSettings.Load();
         lastWebServerEnabled = settings.WebServerEnabled;
         lastWebServerPort = settings.WebServerPort;
+
+        desktopWidgets = new DesktopWidgetManager(settings, () => latestMetrics);
+        pairing = new PairingService(settings, OnPairingRequested);
+        pairing.RequestClosed += id => Dispatcher.BeginInvoke(() =>
+        {
+            // The widget cancelled or the request expired while the prompt was open.
+            if (pairingWindow?.RequestId == id)
+            {
+                pairingWindow.CloseQuietly();
+            }
+        });
 
         // Dispose the early server and start a replacement that captures this
         // instance's live fields.  The brief gap (< 10 ms) between the two is
@@ -116,7 +143,29 @@ public partial class MonitorWindow : Window
         };
         exitItem.Click += (_, _) => System.Windows.Application.Current.Shutdown();
 
+        var editWidgetsItem = new System.Windows.Forms.ToolStripMenuItem("Edit desktop widgets")
+        {
+            ForeColor = menuColor,
+            Font = menuFont,
+            Padding = itemPadding,
+            CheckOnClick = false
+        };
+        editWidgetsItem.Click += (_, _) => desktopWidgets.SetEditing(!desktopWidgets.Editing);
+        desktopWidgets.EditingChanged += () => editWidgetsItem.Checked = desktopWidgets.Editing;
+        trayMenu.Opening += (_, _) => editWidgetsItem.Enabled = settings.DesktopWidgets.Any(w => w.Enabled);
+
+        updateMenuItem = new System.Windows.Forms.ToolStripMenuItem("Update available")
+        {
+            ForeColor = System.Drawing.Color.FromArgb(111, 176, 232),
+            Font = menuFont,
+            Padding = itemPadding,
+            Visible = false
+        };
+        updateMenuItem.Click += (_, _) => ShowUpdateWindow();
+
+        trayMenu.Items.Add(updateMenuItem);
         trayMenu.Items.Add(settingsItem);
+        trayMenu.Items.Add(editWidgetsItem);
         trayMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         trayMenu.Items.Add(exitItem);
 
@@ -130,6 +179,7 @@ public partial class MonitorWindow : Window
 
         Closed += (_, _) =>
         {
+            desktopWidgets.Stop();
             isRunning = false;
             webServer?.Dispose();
             trayIcon.Visible = false;
@@ -142,6 +192,23 @@ public partial class MonitorWindow : Window
             Name = "SysGlance-HardwarePoll"
         };
         pollingThread.Start();
+        desktopWidgets.Start();
+
+        serverRetryTimer.Tick += (_, _) =>
+        {
+            if (settings.WebServerEnabled && (webServer is null || !webServer.IsListening))
+            {
+                StartWebServerIfEnabled();
+            }
+        };
+        serverRetryTimer.Start();
+
+        updateCheckTimer.Tick += async (_, _) =>
+        {
+            updateCheckTimer.Interval = TimeSpan.FromHours(6);
+            await CheckForUpdatesAsync(manual: false);
+        };
+        updateCheckTimer.Start();
 
         updateTimer = new DispatcherTimer
         {
@@ -191,18 +258,33 @@ public partial class MonitorWindow : Window
     /// </summary>
     private void OnSettingsClick()
     {
+        // Not modal: desktop widgets must stay draggable while Settings is open (Edit layout).
+        if (openSettingsWindow is not null)
+        {
+            openSettingsWindow.Activate();
+            return;
+        }
+
         var settingsWindow = new SettingsWindow(settings, () =>
         {
             BuildOverlay();
             DockToTaskbar();
             ApplyOverlayVisibility();
             SyncWebServerState();
-        })
-        {
-            Owner = this
-        };
+        },
+        () => pairing.TrustedCount,
+        RevokeAllWidgets,
+        desktopWidgets,
+        () => ServerProblem,
+        new UpdateHooks(
+            () => availableUpdate,
+            () => CheckForUpdatesAsync(manual: true),
+            ShowUpdateWindow));
 
-        settingsWindow.ShowDialog();
+        openSettingsWindow = settingsWindow;
+        settingsWindow.Closed += (_, _) => openSettingsWindow = null;
+        settingsWindow.Show();
+        settingsWindow.Activate();
     }
 
     /// <summary>
@@ -237,9 +319,179 @@ public partial class MonitorWindow : Window
             webServer = new MetricsWebServer(
                 settings.WebServerPort,
                 () => latestMetrics,
-                () => settings);
+                () => settings,
+                pairing,
+                OnWidgetOrderReceived,
+                OnWidgetVisibleReceived);
             webServer.Start();
         }
+
+        openSettingsWindow?.RefreshConnectionStatus();
+    }
+
+    /// <summary>
+    /// Why the Xeneon Edge connection isn't available, or null when it is (or is switched off).
+    /// </summary>
+    private string? ServerProblem =>
+        settings.WebServerEnabled && webServer is { IsListening: false }
+            ? webServer.StartError + ". Retrying…"
+            : null;
+
+    /// <summary>
+    /// Asks GitHub for a newer release. Automatic checks respect the setting and a skipped version and only
+    /// pop the update window once per version; a manual check (Settings) always reports the result.
+    /// </summary>
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (!manual && !settings.CheckForUpdates)
+        {
+            return;
+        }
+
+        UpdateService.UpdateInfo? found = await updateService.CheckForUpdateAsync();
+        bool isNew = found is not null && found.Tag != availableUpdate?.Tag;
+        availableUpdate = found;
+
+        if (updateMenuItem is not null)
+        {
+            updateMenuItem.Visible = found is not null;
+            updateMenuItem.Text = found is null ? "Update available" : $"Update to {found.Version.ToString(3)}";
+        }
+
+        openSettingsWindow?.RefreshUpdateStatus();
+
+        if (found is null)
+        {
+            return;
+        }
+
+        bool skipped = string.Equals(found.Tag, settings.SkippedUpdateVersion, StringComparison.OrdinalIgnoreCase);
+        if (manual || (isNew && !skipped))
+        {
+            ShowUpdateWindow();
+        }
+    }
+
+    /// <summary>
+    /// Shows (or brings forward) the update window for the available update.
+    /// </summary>
+    private void ShowUpdateWindow()
+    {
+        if (availableUpdate is null)
+        {
+            return;
+        }
+
+        if (updateWindow is not null)
+        {
+            updateWindow.Activate();
+            return;
+        }
+
+        updateWindow = new UpdateWindow(availableUpdate, settings);
+        updateWindow.Closed += (_, _) => updateWindow = null;
+        updateWindow.Show();
+        updateWindow.Activate();
+    }
+
+    /// <summary>
+    /// Opens (or brings forward) Settings. Also used when SysGlance is launched while already running.
+    /// </summary>
+    public void OpenSettings() => OnSettingsClick();
+
+    /// <summary>
+    /// First run: opens Settings with the guided tour.
+    /// </summary>
+    public void ShowFirstRunTourIfNeeded()
+    {
+        if (settings.TourShown)
+        {
+            return;
+        }
+
+        OnSettingsClick();
+        openSettingsWindow?.StartTour();
+    }
+
+    /// <summary>
+    /// A widget on the Xeneon Edge pressed Connect. Called on the listener thread; shows the
+    /// Trust/Decline prompt with the code the widget is displaying.
+    /// </summary>
+    private void OnPairingRequested(PairingRequest request)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            pairingWindow?.CloseQuietly();
+            pairingWindow = new PairingWindow(request);
+            pairingWindow.Resolved += (approved, timedOut) =>
+            {
+                if (approved)
+                {
+                    if (pairing.Approve(request.Id))
+                    {
+                        settings.Save();
+                        openSettingsWindow?.RefreshConnectionStatus();
+                    }
+                }
+                else if (timedOut)
+                {
+                    pairing.Expire(request.Id);
+                }
+                else
+                {
+                    pairing.Decline(request.Id);
+                }
+            };
+            pairingWindow.Closed += (_, _) => pairingWindow = null;
+            pairingWindow.Show();
+        });
+    }
+
+    /// <summary>
+    /// Forgets every paired widget (Disconnect in Settings). They show Connect again on their next request.
+    /// </summary>
+    private void RevokeAllWidgets()
+    {
+        pairing.RevokeAll();
+        settings.Save();
+    }
+
+    /// <summary>
+    /// Applies a card order dragged on the Xeneon Edge widget. Called on the listener thread,
+    /// so the change is marshalled to the UI thread where settings are owned.
+    /// </summary>
+    /// <summary>
+    /// A card was switched on or off on the Edge's edit screen (listener thread).
+    /// </summary>
+    private void OnWidgetVisibleReceived(string key, bool visible)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (settings.IsVisible(key) == visible)
+            {
+                return;
+            }
+
+            settings.SetVisible(key, visible);
+            settings.Save();
+            BuildOverlay();
+            openSettingsWindow?.RefreshMetricList();
+        });
+    }
+
+    private void OnWidgetOrderReceived(IReadOnlyList<string> orderedKeys)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!settings.ApplyVisibleOrder(orderedKeys))
+            {
+                return;
+            }
+
+            settings.Save();
+            BuildOverlay();
+            openSettingsWindow?.RefreshMetricList();
+        });
     }
 
     /// <summary>
@@ -267,6 +519,7 @@ public partial class MonitorWindow : Window
             try
             {
                 latestMetrics = HardwareMonitorService.Instance.GetCurrentMetrics();
+                MetricHistory.Instance.Record(latestMetrics);
             }
             catch (Exception)
             {

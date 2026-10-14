@@ -20,6 +20,7 @@ public sealed class AppSettings
         "GpuHotSpot", "GpuFbUsage", "GpuVidUsage", "GpuBusUsage",
         "GpuTempLimit", "GpuPowerLimit", "GpuVoltageLimit", "GpuNoLoadLimit",
         "Ram", "CommitCharge",
+        "NetDown", "NetUp",
         "Fps", "FpsMin", "FpsAvg", "FpsMax",
         "Fps1Low", "Fps01Low", "Frametime",
         "Gpu1Temp", "Gpu1Usage", "Gpu1Mem", "Gpu1MemProcess", "Gpu2MemProcess",
@@ -80,6 +81,8 @@ public sealed class AppSettings
         ["GpuNoLoadLimit"] = "#EF5350",
         ["Ram"] = "#81C784",
         ["CommitCharge"] = "#81C784",
+        ["NetDown"] = "#4DD0E1",
+        ["NetUp"] = "#BA68C8",
         ["Fps"] = "#E6EE9C",
         ["FpsMin"] = "#E6EE9C",
         ["FpsAvg"] = "#E6EE9C",
@@ -210,9 +213,14 @@ public sealed class AppSettings
     public bool HideOverlay { get; set; }
 
     /// <summary>
-    /// Whether to enable the local HTTP server for the Xeneon Edge widget.
+    /// Whether the local server the Xeneon Edge iCUE widget connects to is running.
     /// </summary>
-    public bool WebServerEnabled { get; set; }
+    public bool WebServerEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Whether the first-run tour of the Settings window has been shown (finished or skipped).
+    /// </summary>
+    public bool TourShown { get; set; }
 
     /// <summary>
     /// Port number for the local metrics web server.
@@ -220,19 +228,103 @@ public sealed class AppSettings
     public int WebServerPort { get; set; } = 5123;
 
     /// <summary>
-    /// Background color of the Xeneon Edge dashboard.
+    /// Background color of the Xeneon Edge iCUE widget.
     /// </summary>
     public string DashboardBgColor { get; set; } = "#0A0A0A";
 
     /// <summary>
-    /// Card background color on the Xeneon Edge dashboard.
+    /// Card background color on the Xeneon Edge iCUE widget.
     /// </summary>
     public string DashboardCardColor { get; set; } = "#141414";
 
     /// <summary>
-    /// Font scale percentage for text in the Xeneon Edge dashboard (50–200).
+    /// Background opacity percentage for the Xeneon Edge iCUE widget (0–100).
     /// </summary>
-    public int DashboardFontScale { get; set; } = 100;
+    public int DashboardBgOpacity { get; set; } = 100;
+
+    /// <summary>
+    /// Card opacity percentage for the Xeneon Edge iCUE widget (0–100).
+    /// </summary>
+    public int DashboardCardOpacity { get; set; } = 100;
+
+    /// <summary>
+    /// Text size percentage for the Xeneon Edge iCUE widget (50–150).
+    /// </summary>
+    public int WidgetTextScale { get; set; } = 100;
+
+    /// <summary>
+    /// Mini graph length on the Xeneon Edge widget's cards in minutes (1, 5 or 15); 0 = no graphs.
+    /// </summary>
+    public int DashboardGraphMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// Metrics whose card shows no mini graph (taskbar overlay has none; this is for the Xeneon Edge widget).
+    /// </summary>
+    public List<string> GraphsOff { get; set; } = [];
+
+    /// <summary>
+    /// iCUE widgets the user trusted through pairing. Only these can read metrics or change the order.
+    /// Read and modified through <see cref="PairingService"/>, which serializes access.
+    /// </summary>
+    public List<TrustedWidget> TrustedWidgets { get; set; } = [];
+
+    /// <summary>
+    /// Floating desktop widgets.
+    /// </summary>
+    public List<DesktopWidgetConfig> DesktopWidgets { get; set; } = [];
+
+    /// <summary>
+    /// Hide all desktop widgets while a full-screen app (game, video) is in front.
+    /// </summary>
+    public bool HideDesktopWidgetsInFullscreen { get; set; } = true;
+
+    /// <summary>
+    /// Whether desktop widgets snap to screen edges and to each other while moved or resized in edit mode.
+    /// </summary>
+    public bool SnapDesktopWidgets { get; set; } = true;
+
+    /// <summary>
+    /// Check GitHub for a newer SysGlance at start-up and every few hours.
+    /// </summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>
+    /// A version the user chose to skip ("v1.2.0"); not offered again, newer versions still are.
+    /// </summary>
+    public string? SkippedUpdateVersion { get; set; }
+
+    /// <summary>
+    /// Reorders the visible metrics to match <paramref name="orderedKeys"/> (sent by the iCUE widget after
+    /// a drag). Hidden metrics keep their positions; unknown, hidden, or duplicate keys are ignored.
+    /// Returns true if the order changed.
+    /// </summary>
+    public bool ApplyVisibleOrder(IEnumerable<string> orderedKeys)
+    {
+        var seen = new HashSet<string>();
+        List<string> keys = orderedKeys
+            .Where(k => MetricOrder.Contains(k) && IsVisible(k) && seen.Add(k))
+            .ToList();
+
+        if (keys.Count < 2)
+        {
+            return false;
+        }
+
+        // The slots these metrics occupy now, filled in the new order.
+        List<int> slots = keys.Select(k => MetricOrder.IndexOf(k)).OrderBy(i => i).ToList();
+        bool changed = false;
+
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (MetricOrder[slots[i]] != keys[i])
+            {
+                MetricOrder[slots[i]] = keys[i];
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
 
     /// <summary>
     /// Gets the color hex string for the given metric key.
@@ -264,6 +356,20 @@ public sealed class AppSettings
     public void SetVisible(string metricKey, bool visible)
     {
         Visibility[metricKey] = visible;
+    }
+
+    /// <summary>
+    /// Whether the metric's card shows a mini graph.
+    /// </summary>
+    public bool HasGraph(string metricKey) => !GraphsOff.Contains(metricKey);
+
+    public void SetGraph(string metricKey, bool on)
+    {
+        GraphsOff.Remove(metricKey);
+        if (!on)
+        {
+            GraphsOff.Add(metricKey);
+        }
     }
 
     /// <summary>
@@ -299,6 +405,8 @@ public sealed class AppSettings
             "GpuNoLoadLimit" => "GPU No Load Limit",
             "Ram" => "RAM",
             "CommitCharge" => "Commit Charge",
+            "NetDown" => "Download",
+            "NetUp" => "Upload",
             "Fps" => "FPS",
             "FpsMin" => "FPS Min",
             "FpsAvg" => "FPS Avg",
@@ -417,6 +525,8 @@ public sealed class AppSettings
             "GpuNoLoadLimit" => "NLL",
             "Ram" => "RAM",
             "CommitCharge" => "CMT",
+            "NetDown" => "DL",
+            "NetUp" => "UL",
             "Fps" => "FPS",
             "FpsMin" => "MIN",
             "FpsAvg" => "AVG",
@@ -505,18 +615,73 @@ public sealed class AppSettings
     /// <summary>
     /// Path to the settings JSON file in the user's AppData folder.
     /// </summary>
-    private static string SettingsDirectory =>
+    internal static string SettingsDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SysGlance");
 
     /// <summary>
     /// Full path to the settings JSON file.
     /// </summary>
-    private static string SettingsFilePath =>
+    internal static string SettingsFilePath =>
         Path.Combine(SettingsDirectory, "settings.json");
 
     /// <summary>
     /// Loads settings from disk, returning defaults if missing or invalid.
     /// </summary>
+    /// <summary>
+    /// When true, <see cref="Save"/> does nothing (set just before a restore restarts the app).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public static bool SavingSuspended { get; set; }
+
+    /// <summary>
+    /// Reads a settings file strictly (for restoring a backup): fails instead of falling back to defaults.
+    /// </summary>
+    public static bool TryReadFile(string path, out AppSettings? settings, out string? error)
+    {
+        settings = null;
+        error = null;
+
+        try
+        {
+            string json = File.ReadAllText(path);
+            using (JsonDocument doc = JsonDocument.Parse(json))
+            {
+                // A SysGlance settings file always has these; anything else is the wrong file.
+                if (doc.RootElement.ValueKind != JsonValueKind.Object
+                    || !doc.RootElement.TryGetProperty(nameof(MetricOrder), out _)
+                    || !doc.RootElement.TryGetProperty(nameof(Visibility), out _))
+                {
+                    error = "This isn't a SysGlance settings file.";
+                    return false;
+                }
+            }
+
+            settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
+            if (settings is null)
+            {
+                error = "The file is empty.";
+                return false;
+            }
+
+            settings.EnsureAllMetrics();
+            return true;
+        }
+        catch (JsonException)
+        {
+            error = "The file is damaged or isn't valid JSON.";
+        }
+        catch (IOException ex)
+        {
+            error = ex.Message;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            error = ex.Message;
+        }
+
+        return false;
+    }
+
     public static AppSettings Load()
     {
         AppSettings settings;
@@ -526,7 +691,13 @@ public sealed class AppSettings
             if (File.Exists(SettingsFilePath))
             {
                 string json = File.ReadAllText(SettingsFilePath);
-                settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+
+                // Settings from before the tour existed: that user isn't new, so don't show it.
+                if (!json.Contains("\"TourShown\""))
+                {
+                    settings.TourShown = true;
+                }
             }
             else
             {
@@ -566,8 +737,17 @@ public sealed class AppSettings
         }
         DashboardBgColor ??= "#0A0A0A";
         DashboardCardColor ??= "#141414";
+        TrustedWidgets ??= [];
+        TrustedWidgets.RemoveAll(w => (w is null) || string.IsNullOrEmpty(w.TokenHash));
+        DesktopWidgets ??= [];
+        DesktopWidgets.RemoveAll(w => w is null);
+        DesktopWidgets.ForEach(w => w.Normalize());
         FontSize = Math.Clamp(FontSize, 8, 20);
-        DashboardFontScale = Math.Clamp(DashboardFontScale, 50, 200);
+        DashboardBgOpacity = Math.Clamp(DashboardBgOpacity, 0, 100);
+        DashboardCardOpacity = Math.Clamp(DashboardCardOpacity, 0, 100);
+        WidgetTextScale = Math.Clamp(WidgetTextScale, 50, 150);
+        DashboardGraphMinutes = MetricHistory.NormalizeMinutes(DashboardGraphMinutes);
+        GraphsOff ??= [];
 
         var knownKeys = new HashSet<string>(AllMetricKeys);
 
@@ -592,13 +772,27 @@ public sealed class AppSettings
     }
 
     /// <summary>
+    /// Indented JSON that tolerates NaN/Infinity, so one bad number can never stop settings from saving.
+    /// </summary>
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals
+    };
+
+    /// <summary>
     /// Saves settings to disk as JSON.
     /// </summary>
     public void Save()
     {
+        // Set while restoring a backup, so the shutting-down app can't overwrite the restored file.
+        if (SavingSuspended)
+        {
+            return;
+        }
+
         Directory.CreateDirectory(SettingsDirectory);
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        string json = JsonSerializer.Serialize(this, options);
+        string json = JsonSerializer.Serialize(this, JsonOptions);
         File.WriteAllText(SettingsFilePath, json);
     }
 }
