@@ -1,0 +1,218 @@
+<Window x:Class="SysGlance.DesktopWidgetEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:cp="clr-namespace:ColorPicker;assembly=ColorPicker"
+        xmlns:controls="clr-namespace:SysGlance.Controls"
+        Title="Desktop widget"
+        Width="400" Height="720"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#202020"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        Foreground="White">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="0"
+                      CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/ColorPicker;component/Styles/DefaultColorPickerStyle.xaml" />
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="SettingRow" TargetType="Grid">
+                <Setter Property="Margin" Value="0,6" />
+                <Setter Property="MinHeight" Value="32" />
+            </Style>
+            <Style x:Key="StepValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextAlignment" Value="Center" />
+                <Setter Property="Width" Value="46" />
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                <Image Source="pack://application:,,,/SysGlance;component/logo.png" Height="18" Margin="0,0,10,0"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock x:Name="TitleText" Text="Desktop widget" FontSize="13" VerticalAlignment="Center" />
+            </StackPanel>
+            <Button Style="{StaticResource TitleBarButton}" HorizontalAlignment="Right" VerticalAlignment="Top" Height="44"
+                    WindowChrome.IsHitTestVisibleInChrome="True" Click="Close_Click" ToolTip="Close">
+                <TextBlock Text="&#xE8BB;" FontFamily="{StaticResource IconFont}" FontSize="10" />
+            </Button>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16,4,16,16">
+
+                <!-- General -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="General" Style="{StaticResource SectionTitle}" Margin="0,0,0,4" />
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="180" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Name" Style="{StaticResource SettingLabel}" />
+                            <TextBox x:Name="NameBox" Grid.Column="1" MaxLength="40" VerticalAlignment="Center" />
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Always on top" Style="{StaticResource SettingLabel}" />
+                                <TextBlock Text="Stays above other windows. Clicks still pass through." Style="{StaticResource SettingHint}" />
+                            </StackPanel>
+                            <CheckBox x:Name="TopmostToggle" Grid.Column="1" Style="{StaticResource ToggleSwitch}" />
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Card style" Style="{StaticResource SettingLabel}" />
+                            <Border Grid.Column="1" Style="{StaticResource SegmentGroup}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="StyleGaugesRadio" Content="Gauges" GroupName="CardStyle" Style="{StaticResource Segment}" />
+                                    <RadioButton x:Name="StyleNumbersRadio" Content="Numbers" GroupName="CardStyle" Style="{StaticResource Segment}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Spacing" Style="{StaticResource SettingLabel}" />
+                                <TextBlock Text="Room around and between cards" Style="{StaticResource SettingHint}" />
+                            </StackPanel>
+                            <Border Grid.Column="1" Style="{StaticResource SegmentGroup}" Margin="12,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="SpacingNormalRadio" Content="Normal" GroupName="Spacing" Style="{StaticResource Segment}" />
+                                    <RadioButton x:Name="SpacingCompactRadio" Content="Compact" GroupName="Spacing" Style="{StaticResource Segment}" />
+                                    <RadioButton x:Name="SpacingNoneRadio" Content="None" GroupName="Spacing" Style="{StaticResource Segment}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Graphs" Style="{StaticResource SettingLabel}" />
+                                <TextBlock Text="History along the bottom of each card" Style="{StaticResource SettingHint}" />
+                            </StackPanel>
+                            <Border Grid.Column="1" Style="{StaticResource SegmentGroup}" Margin="12,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="GraphOff" Content="Off" GroupName="GraphMinutes" Style="{StaticResource Segment}" />
+                                    <RadioButton x:Name="Graph1" Content="1m" GroupName="GraphMinutes" Style="{StaticResource Segment}" />
+                                    <RadioButton x:Name="Graph5" Content="5m" GroupName="GraphMinutes" Style="{StaticResource Segment}" />
+                                    <RadioButton x:Name="Graph15" Content="15m" GroupName="GraphMinutes" Style="{StaticResource Segment}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Sensors -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Sensors" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SettingHint}" Margin="0,2,0,8"
+                                   Text="Only for this widget. Tick what to show and use the arrows to set the order. The chart icon turns a card's mini graph on or off." />
+                        <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                            <controls:MetricListEditor x:Name="MetricList" Margin="0,0,8,0" />
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- Appearance -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Appearance" Style="{StaticResource SectionTitle}" Margin="0,0,0,4" />
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Background" Style="{StaticResource SettingLabel}" />
+                            <cp:PortableColorPicker x:Name="BgPicker" Grid.Column="1" Width="24" Height="24" ShowAlpha="False" Margin="0,0,12,0" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" ToolTip="Background opacity">
+                                <Button x:Name="BgOpacityDec" Content="&#x2212;" Style="{StaticResource StepButton}" />
+                                <TextBlock x:Name="BgOpacityText" Style="{StaticResource StepValue}" />
+                                <Button x:Name="BgOpacityInc" Content="+" Style="{StaticResource StepButton}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Cards" Style="{StaticResource SettingLabel}" />
+                            <cp:PortableColorPicker x:Name="CardPicker" Grid.Column="1" Width="24" Height="24" ShowAlpha="False" Margin="0,0,12,0" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" ToolTip="Card opacity">
+                                <Button x:Name="CardOpacityDec" Content="&#x2212;" Style="{StaticResource StepButton}" />
+                                <TextBlock x:Name="CardOpacityText" Style="{StaticResource StepValue}" />
+                                <Button x:Name="CardOpacityInc" Content="+" Style="{StaticResource StepButton}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Text color" Style="{StaticResource SettingLabel}" />
+                            <cp:PortableColorPicker x:Name="TextPicker" Grid.Column="1" Width="24" Height="24" ShowAlpha="False" />
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Text size" Style="{StaticResource SettingLabel}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button x:Name="TextScaleDec" Content="&#x2212;" Style="{StaticResource StepButton}" />
+                                <TextBlock x:Name="TextScaleText" Style="{StaticResource StepValue}" />
+                                <Button x:Name="TextScaleInc" Content="+" Style="{StaticResource StepButton}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Corner roundness" Style="{StaticResource SettingLabel}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button x:Name="RadiusDec" Content="&#x2212;" Style="{StaticResource StepButton}" />
+                                <TextBlock x:Name="RadiusText" Style="{StaticResource StepValue}" />
+                                <Button x:Name="RadiusInc" Content="+" Style="{StaticResource StepButton}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Style="{StaticResource SettingHint}" TextAlignment="Center" Margin="0,4,0,0"
+                           Text="To move or resize, use Edit layout in Settings or the tray menu." />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

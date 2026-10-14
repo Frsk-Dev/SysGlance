@@ -1,0 +1,59 @@
+<Window x:Class="SysGlance.DesktopWidgetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:SysGlance.Controls"
+        Title="SysGlance desktop widget"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        ResizeMode="NoResize"
+        MinWidth="120" MinHeight="80"
+        FontFamily="Segoe UI Variable Text, Segoe UI">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <!-- Widget body -->
+        <Border x:Name="Body" CornerRadius="14">
+            <Grid>
+                <controls:AutoFitPanel x:Name="Cards" Margin="10" Gap="8" />
+                <TextBlock x:Name="EmptyText" Text="No sensors yet. Open Edit layout and press the settings icon to pick some."
+                           Foreground="#C8C8C8" FontSize="13" TextWrapping="Wrap" TextAlignment="Center"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16"
+                           Visibility="Collapsed" />
+            </Grid>
+        </Border>
+
+        <!-- Edit mode chrome -->
+        <Grid x:Name="EditChrome" Visibility="Collapsed">
+            <Rectangle x:Name="EditOutline" Stroke="#4389C7" StrokeThickness="2" StrokeDashArray="4 3"
+                       RadiusX="14" RadiusY="14" IsHitTestVisible="False" />
+            <!-- Covers the body so the whole widget can be dragged in edit mode. -->
+            <Border Background="#22000000" CornerRadius="14" />
+            <Border VerticalAlignment="Top" HorizontalAlignment="Stretch" Margin="6"
+                    Background="#E61E1E1E" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="8" Padding="10,4,4,4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="NameText" Foreground="White" FontSize="12" FontWeight="SemiBold"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <Button x:Name="SettingsButton" Grid.Column="1" Content="&#xE713;" FontFamily="{StaticResource IconFont}" Style="{StaticResource SubtleButton}"
+                            Padding="8,2" FontSize="14" ToolTip="Widget settings" />
+                    <Button x:Name="DoneButton" Grid.Column="2" Content="Done" Style="{StaticResource AccentButton}"
+                            Padding="10,3" FontSize="12" Margin="4,0,0,0" ToolTip="Finish editing all desktop widgets" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
