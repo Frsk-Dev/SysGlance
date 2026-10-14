@@ -82,7 +82,7 @@ There's no installer. After the first download, SysGlance updates itself.
 
 ### Set up the Xeneon Edge
 
-1. Click **Get the iCUE widget** in Settings, or download `SysGlance.icuewidget` from the latest release. Double-click it to add it to iCUE.
+1. Click **Get the iCUE widget** in Settings and get the SysGlance widget ($1.99) from the Elgato Marketplace (coming soon).
 2. Put the widget on your Edge and set its **Data Source** to *SysGlance App* or *Auto*.
 3. Press **Connect** on the Edge, then press **Trust** in SysGlance when the codes match.
 4. If it can't connect, allow `localhost:5123` for SysGlance in **iCUE Settings → Widget Access**.
