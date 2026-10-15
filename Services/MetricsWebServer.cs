@@ -15,8 +15,11 @@ namespace SysGlance.Services;
 ///   POST /pair/cancel?id=...   the widget gave up waiting
 /// Trusted widgets only (Authorization: Bearer token from pairing):
 ///   GET  /metrics              visible metrics in the user's order, plus widget appearance settings
+///                              (?instance=<iCUE widget id> lets that widget's iCUE preview copy read them too)
 ///   GET  /metrics?all=1        every metric
 ///   POST /order                JSON array of metric keys, after a card was dragged on the Edge
+/// iCUE's preview copy of a trusted widget (no token: iCUE gives it separate storage):
+///   GET  /metrics?preview=<its id>   read-only, while the widget it previews is still trusted
 ///
 /// Bodies are read as JSON whatever their content type, so the widget can send text/plain and avoid
 /// CORS preflights; OPTIONS is answered anyway for requests that carry the Authorization header.
@@ -213,8 +216,13 @@ internal sealed class MetricsWebServer : IDisposable
                     break;
 
                 case ("/metrics", "GET"):
-                    if (RequireTrusted(request, response))
+                    if ((BearerToken(request) is null) && pairing.IsPreviewOfTrusted(request.QueryString["preview"]))
                     {
+                        ServeMetricsJson(response, includeAll: false);
+                    }
+                    else if (RequireTrusted(request, response))
+                    {
+                        pairing.RememberInstance(request.QueryString["instance"], BearerToken(request)!);
                         ServeMetricsJson(response, request.QueryString["all"] == "1");
                     }
                     break;
@@ -309,18 +317,21 @@ internal sealed class MetricsWebServer : IDisposable
     /// </summary>
     private bool RequireTrusted(HttpListenerRequest request, HttpListenerResponse response)
     {
-        string? header = request.Headers["Authorization"];
-        string? token = (header is not null) && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            ? header[7..].Trim()
-            : null;
-
-        if (pairing.IsTrusted(token))
+        if (pairing.IsTrusted(BearerToken(request)))
         {
             return true;
         }
 
         RespondJson(response, 401, new { error = "unauthorized" });
         return false;
+    }
+
+    private static string? BearerToken(HttpListenerRequest request)
+    {
+        string? header = request.Headers["Authorization"];
+        return (header is not null) && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? header[7..].Trim()
+            : null;
     }
 
     /// <summary>

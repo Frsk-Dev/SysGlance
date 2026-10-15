@@ -62,6 +62,13 @@ internal sealed class PairingService
     private readonly Action<PairingRequest>? onRequest;
     private readonly object sync = new();
     private readonly Dictionary<string, Entry> entries = [];
+
+    // iCUE runs each widget twice: on the Edge, and in its own preview with separate storage, so the preview copy
+    // has no token. The paired Edge copy tells us its iCUE widget id; the preview copy's id is the same plus
+    // "-preview". Normalized widget id -> hash of the token that widget uses. Kept in memory only: the Edge copy
+    // reports its id again on every poll.
+    private readonly Dictionary<string, string> widgetInstances = [];
+    private const int MaxWidgetInstances = 32;
     private DateTime lastRequestUtc = DateTime.MinValue;
 
     private sealed class Entry
@@ -240,6 +247,82 @@ internal sealed class PairingService
     }
 
     /// <summary>
+    /// An iCUE widget id as "1057e8c5-a19f-..." whatever form it arrives in: iCUE uses it with and without braces,
+    /// and gives the preview copy the same id with "-preview" on the end. Null when it doesn't look like one.
+    /// </summary>
+    public static string? NormalizeWidgetId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || (id.Length > 100))
+        {
+            return null;
+        }
+
+        string value = id.Trim();
+        if (value.EndsWith("-preview", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value[..^8];
+        }
+
+        value = value.Replace("{", "").Replace("}", "").ToLowerInvariant();
+        return (value.Length is >= 8 and <= 64) && value.All(c => char.IsAsciiLetterOrDigit(c) || (c == '-')) ? value : null;
+    }
+
+    /// <summary>
+    /// Records which iCUE widget a trusted token belongs to, so that widget's preview copy can be served too.
+    /// Call only after <see cref="IsTrusted"/> accepted <paramref name="token"/>.
+    /// </summary>
+    public void RememberInstance(string? widgetId, string token)
+    {
+        string? key = NormalizeWidgetId(widgetId);
+        if (key is null)
+        {
+            return;
+        }
+
+        lock (sync)
+        {
+            if (!widgetInstances.ContainsKey(key) && (widgetInstances.Count >= MaxWidgetInstances))
+            {
+                widgetInstances.Clear();
+            }
+
+            widgetInstances[key] = Hash(token);
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="previewId"/> is the iCUE preview copy of a widget that is paired and still trusted.
+    /// Read-only access: callers only use this for GET /metrics.
+    /// </summary>
+    public bool IsPreviewOfTrusted(string? previewId)
+    {
+        string? key = NormalizeWidgetId(previewId);
+        if (key is null)
+        {
+            return false;
+        }
+
+        lock (sync)
+        {
+            if (!widgetInstances.TryGetValue(key, out string? hash))
+            {
+                return false;
+            }
+
+            byte[] wanted = Encoding.ASCII.GetBytes(hash);
+            foreach (TrustedWidget widget in settings.TrustedWidgets)
+            {
+                if (CryptographicOperations.FixedTimeEquals(wanted, Encoding.ASCII.GetBytes(widget.TokenHash)))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Number of trusted widgets.
     /// </summary>
     public int TrustedCount
@@ -261,6 +344,7 @@ internal sealed class PairingService
         lock (sync)
         {
             settings.TrustedWidgets.Clear();
+            widgetInstances.Clear();
         }
     }
 
